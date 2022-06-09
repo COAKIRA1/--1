@@ -1,0 +1,138 @@
+from __future__ import unicode_literals
+import openpyxl
+import xlrd
+import jieba
+import re
+
+data = xlrd.open_workbook(r'房屋信息.xls')
+table = data.sheets()[0]
+col_1 = table.col_values(1)
+# 第二列房屋信息
+col_2 = table.col_values(2)
+# 第三列获取地址
+col_3 = table.col_values(3)
+# 第四列得到价格
+
+def getplace(tablecol):
+    # 从地址得到区名的函数
+    tablecol.pop(0)
+    # 去掉列名
+    resultlist = []
+    pattern1 = r'(([\u4e00-\u9fa5]{2,7}?(?:区|县|州)){0,1})'
+    # 匹配区名的正则表达式
+    for textst in tablecol:
+        pattren = re.compile(pattern1)
+        result = pattren.search(textst)
+        #  search返回第一个匹配的值，根据地址字符串，区名在字符串开头
+        result = result.group(0)
+        # group(0)返回匹配的字符串
+        resultlist.append(result)
+    return resultlist
+
+
+def getprice(tablecol):
+    #  得到价格的数字
+    tablecol.pop(0)
+    pricelist = []
+    pattern2 = r'\d+\.?\d*'
+    #  匹配数字
+    pattern = re.compile(pattern2)
+    for textst in tablecol:
+        try:
+            price = pattern.search(textst)
+            price = price.group(0)
+            pricelist.append(price)
+        except:
+            price = ''
+            pricelist.append(price)
+    return pricelist
+
+
+def getarea(tablecol):
+    #  提取房屋面积
+    tablecol.pop(0)
+    arealist = []
+    for textst in tablecol:
+        #  经过观察，有关房屋面积的描述有两种，分别为厅X和单间X
+        try:
+            pattern3 = r'厅(.*?)㎡'
+            pattern2 = r'\d+\.?\d*'
+            pattern = re.compile(pattern3)
+            area = (pattern.search(textst)).group(0)
+            pattern = re.compile(pattern2)
+            area = pattern.search(area)
+            area = area.group(0)
+            arealist.append(area)
+        except:
+            try:
+                pattern3 = r'间(.*?)㎡'
+                pattern2 = r'\d+\.?\d*'
+                pattern = re.compile(pattern3)
+                area = (pattern.search(textst)).group(0)
+                pattern = re.compile(pattern2)
+                area = pattern.search(area)
+                area = area.group(0)
+                arealist.append(area)
+            except:
+                area = ''
+                arealist.append(area)
+    return arealist
+
+
+def gettype(tablecol):
+    #  提取房屋户型
+    typelist = []
+    for textst in tablecol:
+        try:
+            pattern4 = r'(.*?)厅'
+            pattern = re.compile(pattern4)
+            type = (pattern.search(textst)).group(0)
+        except:
+            type = '单间'
+        typelist.append(type)
+    return typelist
+
+
+def gete_p(tablecol1,tablecol2):
+    # 计算每平方米房价/万元
+    epliset = []
+    for i in range(len(tablecol1)):
+        try:
+            tablecol1[i] = float(tablecol1[i])
+            tablecol2[i] = float(tablecol2[i])
+            # 处理用户输错的数据
+            if tablecol1[i] >= 10000:
+                tablecol1[i] = tablecol1[i] / 10000
+            ep = tablecol1[i]/tablecol2[i]
+        except:
+            ep = 0
+        epliset.append('%.2f' %ep)
+    return epliset
+
+
+placelist = getplace(col_2)
+pricelist = getprice(col_3)
+arealist = getarea(col_1)
+typelist = gettype(col_1)
+eplist = gete_p(pricelist,arealist)
+
+book = openpyxl.Workbook()
+sheet = book.active
+#  创建一个工作表
+sheet.title = '户型信息'
+#  为sheet页起名
+
+#  数据写入表里
+for i in range(len(placelist)):
+    sheet.cell(i+1,1,placelist[i])
+for i in range(len(typelist)):
+    sheet.cell(i+1,2,typelist[i])
+for i in range(len(arealist)):
+    sheet.cell(i+1,3,arealist[i])
+for i in range(len(pricelist)):
+    sheet.cell(i+1,4,pricelist[i])
+for i in range(len(eplist)):
+    sheet.cell(i+1,5,eplist[i])
+
+#  整理好的数据放在新的表格里
+book.save('户型信息.xls')
